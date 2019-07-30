@@ -11,18 +11,18 @@ class CharRomIter {
         this.charRom = charRom;
     }
     next() {
-        if (this.pos >= this.charRom._romImage.length) {
+        if (this.pos >= this.charRom._romImage.length / this.charRom.height) {
             return {done: true};
         }
         let value = {
-            value: {value: this.charRom._romImage.slice(this.pos, this.pos + this.charRom.height), pos: this.pos},
+            value: {value: this.charRom.charAt(this.pos), pos: this.pos*this.charRom.height},
             done: false
         };
-        this.pos += this.charRom.height;
+        this.pos++;
         return value;
     }
-
 }
+
 /*
  * Object representing a Commodore CHAR ROM dump
  */
@@ -36,133 +36,78 @@ class CharacterRom {
     [Symbol.iterator]() {
         return new CharRomIter(this);
     }
-    
+
     get height() {
         return this._height;
     }
 
+    charAt(pos) {
+        return this._romImage.slice(pos * this._height, pos * this._height + this._height);
+    }
+
+    static toGlyph(char, glyph = "#") {
+        for (let byte of char) {
+            let mask = 0b10000000;
+            let lineOut = "";
+            for (let shift = 0; shift<8; shift++) {
+                if ((byte & mask) > 0) {
+                    lineOut += glyph;
+                }
+                else {
+                    lineOut += " ";
+                }
+                mask = mask >> 1;
+            }
+            console.log(lineOut);
+        }
+    }
+
+    static toBanner(charrom, posarray, glyph = "#") {
+        let chars = [];
+        for (let pos of posarray) {
+            chars.push(charrom.charAt(pos))
+        }
+        for (let line=0; line<charrom.height; line++){
+            let lineOut = "";
+            for (let char of chars) {
+
+                let byte = char[line];
+                let mask = 0b10000000;
+                for (let shift = 0; shift<8; shift++) {
+                    if ((byte & mask) > 0) {
+                        lineOut += glyph;
+                    }
+                    else {
+                        lineOut += " ";
+                    }
+                    mask = mask >> 1;
+                }
+            }
+            console.log(lineOut);
+        }
+    }
+
 }
-
-c128char = new CharacterRom(char_rom);
-
-for (let {pos, value} of c128char) {
-    console.log(pos+": "+value);
-}
-
 
 function asciiToChar(c) {
 
     if (c>=64) {
-        return ((c-64)*8);
+        return ((c-64));
     } else {
-        return (c*8);
+        return (c);
     }
 }
 
-function strToChars(str, x, y, ctx) {
-
-    let p=0;
+function strToChar(str) {
+    let charpos = [];
     for (let c of str) {
-        let char_pos_in_rom = asciiToChar(c.charCodeAt(0));
-        let char_data = char_rom.slice(char_pos_in_rom, char_pos_in_rom+8);
-        ctx.addShape(char(char_data, x+p, y));
-        p+=8;
+        charpos.push(asciiToChar(c.charCodeAt(0)))
     }
+
+    return charpos;
 }
 
-function point (x, y) {
+c128char = new CharacterRom(char_rom);
 
-    return { x, y };
-
-}
-
-function setupContext(canvas) {
-
-    const ctx = canvas.getContext("2d");
-
-    ctx.imageSmoothingEnabled = false;
-    ctx.mozImageSmoothingEnabled = false;
-    ctx.webketImageSmoothEnabled = false;
-    ctx.msImageSmoothingEnabled = false;
-
-    ctx.shapes = [];
-    ctx.addShape = (shape) => {
-        ctx.shapes.push(shape);
-    };
-
-    ctx.drawShapes = () => {
-        for (let s of ctx.shapes) {
-            s.draw(ctx);
-        }
-    };
-
-    ctx.draw = () => {
-        ctx.clearRect(0, 0, 640, 400); // clear canvas
-        ctx.drawShapes();
-        window.requestAnimationFrame(ctx.draw);
-
-    };
-
-    return ctx
-
-}
-
-var ctx = setupContext(document.getElementById("display"));
-
-function char(rom_data, x, y) {
-
-    return {
-        char_data: rom_data,
-        x,
-        y,
-        rotate() {
-            for (let i=0;i<8;i++) {
-                rightbit = this.char_data[i] & 0b00000001;
-                this.char_data[i] = (this.char_data[i] >> 1);
-                this.char_data[i] = this.char_data[i] | (rightbit << 7);
-            }
-
-        },
-        draw(ctx) {
-            char = ctx.createImageData(8,8);
-            let p = 0;
-            for (let l of this.char_data) {
-                let mask = 0b10000000;
-                for (let i=0;i<8;i++) {
-                    if ((l & mask) !== 0) {
-                        char.data[p] = 0;
-                        char.data[p + 1] = 0;
-                        char.data[p + 2] = 0;
-                        char.data[p + 3] = 255;
-                    }
-                    p+=4;
-                    mask = mask >> 1;
-                }
-            }
-            ctx.putImageData(char,this.x,this.y);
-        },
-    };
-}
-
-let x = 10;
-let y = 20;
-
-
-strToChars("    **** COMMODORE 64 BASIC V2 ****", 10,10, ctx);
-strToChars(" 64K RAM SYSTEM  38911 BASIC BYTES FREE", 10,26, ctx);
-strToChars("READY.", 10, 42, ctx);
-ctx.draw();
-
-//window.setInterval(rotate_chars, 50);
-
-function rotate_chars() {
-    for (let c of ctx.shapes) {
-        c.rotate();
-    }
-}
-
-
-
-
-
+CharacterRom.toBanner(c128char, strToChar("COMMODORE 128"), "▓");
 
